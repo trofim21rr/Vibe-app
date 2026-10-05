@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Vibe Check</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background-color: #0d0f12; color: #f3f4f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 16px; }
+    .card { background: #161a22; border: 1px solid #2d3342; border-radius: 20px; padding: 24px; width: 100%; max-width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; }
+    h1 { font-size: 22px; margin-bottom: 8px; color: #fff; }
+    p.subtitle { font-size: 14px; color: #9ca3af; margin-bottom: 24px; line-height: 1.4; }
+    .progress { height: 6px; background: #262c3a; border-radius: 4px; margin-bottom: 20px; overflow: hidden; }
+    .progress-bar { height: 100%; width: 20%; background: #6366f1; transition: width 0.3s; }
+    .question-title { font-size: 17px; font-weight: 600; margin-bottom: 18px; color: #e5e7eb; min-height: 48px; display: flex; align-items: center; justify-content: center; }
+    .options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    .btn { background: #222734; color: #e5e7eb; border: 1px solid #374151; padding: 14px 16px; border-radius: 12px; font-size: 14px; font-weight: 500; cursor: pointer; text-align: left; transition: all 0.15s; }
+    .btn:active { background: #374151; transform: scale(0.98); }
+    .action-btn { background: #6366f1; color: #fff; border: none; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 600; width: 100%; cursor: pointer; margin-top: 10px; }
+    .action-btn:active { opacity: 0.9; }
+    .res-badge { display: inline-block; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid #6366f1; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .res-title { font-size: 22px; font-weight: 700; margin-bottom: 12px; color: #fff; }
+    .res-desc { font-size: 14px; color: #d1d5db; line-height: 1.6; margin-bottom: 20px; text-align: left; background: #0d0f12; padding: 14px; border-radius: 10px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Экран приветствия -->
+  <div id="screen-start" class="card">
+    <div class="res-badge">Тест личности</div>
+    <h1>Твой скрытый вайб</h1>
+    <p class="subtitle">Ответь на 5 ситуативных вопросов, чтобы узнать свой доминирующий архетип.</p>
+    <button class="action-btn" onclick="startQuiz()">Начать тест</button>
+  </div>
+
+  <!-- Экран вопросов -->
+  <div id="screen-quiz" class="card hidden">
+    <div class="progress"><div id="p-bar" class="progress-bar"></div></div>
+    <div id="q-title" class="question-title">Загрузка...</div>
+    <div id="q-options" class="options"></div>
+  </div>
+
+  <!-- Экран результата -->
+  <div id="screen-result" class="card hidden">
+    <div class="res-badge">Твой архетип</div>
+    <div id="res-name" class="res-title">...</div>
+    <div id="res-text" class="res-desc">...</div>
+    <button class="action-btn" onclick="shareToStory()">Поделиться в Stories ✨</button>
+    <button class="btn" style="text-align: center; margin-top: 8px; width: 100%; border: none; background: transparent; color: #9ca3af;" onclick="restartQuiz()">Пройти заново</button>
+  </div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) { tg.ready(); tg.expand(); }
+
+    const questions = [
+      {
+        q: "Пятница, 23:30. Где ты чаще всего мыслями или телом?",
+        a: [
+          { text: "В тишине дома, в наушниках или за любимым делом", type: "lone" },
+          { text: "Где-то на улице / в движении, пока город пустеет", type: "night" },
+          { text: "В потоке планов, задач и мыслей о будущем", type: "builder" },
+          { text: "Скроллю ленту и ловлю ночную меланхолию", type: "romantic" }
+        ]
+      },
+      {
+        q: "Твоя главная суперсила в стрессовой ситуации?",
+        a: [
+          { text: "Включаю холодную логику и отключаю эмоции", type: "builder" },
+          { text: "Могу часами держать всё в себе и не подавать виду", type: "lone" },
+          { text: "Юмор, сарказм и умение сгладить углы", type: "night" },
+          { text: "Ухожу в творчество или абстрагируюсь от шума", type: "romantic" }
+        ]
+      },
+      {
+        q: "Какая музыка идеально описывает твое обычное состояние?",
+        a: [
+          { text: "Глубокий атмосферный звук, эмбиент или фонк", type: "night" },
+          { text: "Тексты со смыслом, меланхоличный инди или пост-панк", type: "romantic" },
+          { text: "Инструментал, саундтреки, динамичные биты под работу", type: "builder" },
+          { text: "Старые проверенные треки, которые никто не знает", type: "lone" }
+        ]
+      },
+      {
+        q: "Что тебя больше всего раздражает в людях вокруг?",
+        a: [
+          { text: "Шум ради шума и фальшивая позитивность", type: "lone" },
+          { text: "Неорганизованность и пустые обещания", type: "builder" },
+          { text: "Поверхностность и неумение слушать", type: "romantic" },
+          { text: "Духота и рамки, когда все боятся рискнуть", type: "night" }
+        ]
+      },
+      {
+        q: "Если бы тебе дали полную свободу на неделю:",
+        a: [
+          { text: "Уехал бы в глушь без связи и интернета", type: "lone" },
+          { text: "Заперся бы и создал то, что давно задумал", type: "builder" },
+          { text: "Бесцельно гулял бы по ночным улицам с плеером", type: "night" },
+          { text: "Провёл бы время за душевными разговорами до утра", type: "romantic" }
+        ]
+      }
+    ];
+
+    const results = {
+      lone: {
+        title: "Одинокий Архитектор 🐺",
+        desc: "Тебе комфортно в собственной вселенной. Ты видишь фальшь за версту и ценишь тишину дороже любого одобрения. Люди считают тебя закрытым, но в узком кругу ты — самый надёжный стержень."
+      },
+      night: {
+        title: "Ночной Сталкер 🌃",
+        desc: "Твое настоящее время начинается, когда мир засыпает. У тебя обострённое чувство свободы и тонкая эстетика меланхолии. Ты замечаешь детали, которые дневная суета стирает."
+      },
+      builder: {
+        title: "Стратег в Тени ⚙️",
+        desc: "Твой мозг всегда в режиме анализа. Ты не любишь драму и хаос, предпочитая конкретный результат. Твоя сила — в тихом упорстве и умении играть вдолгую."
+      },
+      romantic: {
+        title: "Меланхоличный Творец 🌧️",
+        desc: "Ты чувствуешь этот мир глубже, чем он того заслуживает. Твои мысли — это саундтрек к фильму, который ещё не сняли. Твой вайб вдохновляет тех, кто умеет слушать."
+      }
+    };
+
+    let curQ = 0;
+    let scores = { lone: 0, night: 0, builder: 0, romantic: 0 };
+    let finalResult = null;
+
+    function startQuiz() {
+      document.getElementById('screen-start').classList.add('hidden');
+      document.getElementById('screen-quiz').classList.remove('hidden');
+      renderQuestion();
+    }
+
+    function renderQuestion() {
+      const q = questions[curQ];
+      document.getElementById('q-title').innerText = q.q;
+      document.getElementById('p-bar').style.width = ((curQ + 1) / questions.length * 100) + '%';
+      
+      const box = document.getElementById('q-options');
+      box.innerHTML = '';
+      q.a.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.innerText = opt.text;
+        btn.onclick = () => selectAnswer(opt.type);
+        box.appendChild(btn);
+      });
+    }
+
+    function selectAnswer(type) {
+      scores[type]++;
+      curQ++;
+      if (curQ < questions.length) {
+        renderQuestion();
+      } else {
+        showResult();
+      }
+    }
+
+    function showResult() {
+      document.getElementById('screen-quiz').classList.add('hidden');
+      document.getElementById('screen-result').classList.remove('hidden');
+
+      let winner = 'lone';
+      let maxVal = -1;
+      for (const [key, val] of Object.entries(scores)) {
+        if (val > maxVal) { maxVal = val; winner = key; }
+      }
+      finalResult = results[winner];
+      document.getElementById('res-name').innerText = finalResult.title;
+      document.getElementById('res-text').innerText = finalResult.desc;
+    }
+
+    function shareToStory() {
+      if (tg && tg.shareToStory) {
+        tg.shareToStory('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800', {
+          text: `Мой вайб: ${finalResult.title}\nУзнай свой в боте`
+        });
+      } else {
+        alert("Скопируй результат и поделись им с друзьями!");
+      }
+    }
+
+    function restartQuiz() {
+      curQ = 0;
+      scores = { lone: 0, night: 0, builder: 0, romantic: 0 };
+      document.getElementById('screen-result').classList.add('hidden');
+      document.getElementById('screen-start').classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
